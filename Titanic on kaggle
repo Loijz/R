@@ -1,0 +1,156 @@
+---
+title: "Titanic Survival Prediction"
+author: "Jarkko Schaad"
+date: "2024-04-16"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+#download
+
+setwd("E:/R/Challenges/Titanic")
+
+titanic.train <- read.csv(file = "train.csv", stringsAsFactors = FALSE, header = TRUE)
+tail(titanic.train)
+titanic.test <- read.csv(file = "test.csv", stringsAsFactors = FALSE, header = TRUE)
+tail(titanic.test)
+median(titanic.test$Age, na.rm = TRUE)
+median(titanic.train$Age, na.rm = TRUE)
+
+#Setting a new column
+titanic.train$IsTrainSet <- TRUE
+titanic.test$IsTrainSet <- FALSE
+tail(titanic.test)
+
+library(dplyr)
+library(tidyverse)
+```
+
+```{r setup, include=FALSE}
+#Adding a column Survived
+titanic.test$Survived <- NA
+ncol(titanic.test)
+ncol(titanic.train)
+str(titanic.train)
+names(titanic.train)
+summary(titanic.train$Survived)
+
+#Merge the dataset into one
+titanic.full <- rbind(titanic.train, titanic.test)
+table(titanic.full$IsTrainSet)
+table(titanic.full$Survived)
+tail(titanic.full)
+```
+
+```{r setup, include=FALSE}
+#Cleaning Age
+table(titanic.full$Embarked)
+
+titanic.full[titanic.full$Embarked =="", "Embarked"] <- "S"
+titanic.full$Embarked == ""
+
+table(is.na(titanic.full$Age))
+
+ggplot(titanic.full, aes(y = Age)) +
+  geom_boxplot()
+
+boxplot.stats(titanic.full$Age)
+upper.whiskerAge <- boxplot.stats(titanic.full$Age)$stats[5]
+outlier.filterAge <- titanic.full$Age < upper.whiskerAge
+
+table(outlier.filterAge)
+
+#showing only rows which are filtered < upper Whisker (66), the comma is important
+titanic.full[outlier.filterAge,]
+library(lmtest)
+library(sandwich)
+library(AER)
+Age.inquation <- "Age ~ Pclass + Sex + SibSp + Fare + Embarked"
+
+```
+
+```{r setup, include=FALSE}
+
+Age.ols <- lm(
+  formula = Age.inquation, 
+  data = titanic.full[outlier.filterAge,]
+)
+
+
+Age.row <- titanic.full[
+  is.na(titanic.full$Age),
+  c("Pclass", "Sex", "SibSp", "Fare", "Embarked")
+]
+
+Age.predictions <- predict(Age.ols, newdata = Age.row)
+titanic.full[is.na(titanic.full$Age), "Age"] <- Age.predictions
+
+
+coeftest(Age.ols, vcov=vcovHC)
+```
+
+```{r setup, include=FALSE}
+
+
+#Cleaning Fare
+Med.Fare <- median(titanic.full$Fare, na.rm = TRUE)
+titanic.full[is.na(titanic.full$Fare), "Fare"] <- Med.Fare
+
+table(is.na(titanic.full$Fare))
+tail(titanic.full)
+```
+
+```{r setup, include=FALSE}
+
+#Categorical casting
+str(titanic.full)
+titanic.full$Pclass <- as.factor(titanic.full$Pclass)
+titanic.full$Sex <- as.factor(titanic.full$Sex)
+titanic.full$Embarked <- as.factor(titanic.full$Embarked)
+
+
+
+#Split dataset into train and test
+titanic.train2 <- titanic.full[titanic.full$IsTrainSet==TRUE,]
+titanic.test2 <- titanic.full[titanic.full$IsTrainSet==FALSE,]
+
+
+#cast survived into a factor only for trainset
+titanic.train2$Survived <- as.factor(titanic.train2$Survived)
+str(titanic.train2)
+
+```
+
+```{r setup, include=FALSE}
+
+#Formula for Random Forest
+
+Survivd.equation <- "Survived ~ Pclass + Sex + Age + Parch + Fare + Embarked"
+
+survived.formula <- as.formula(Survived.equation)
+
+install.packages("randomForest")
+library(randomForest)
+
+titanic.model <- randomForest(formula = survived.formula, data = titanic.train2, ntree = 300, mtry = 3, nodesize = 0.01 * nrow(titanic.test2))
+
+
+features.equation <- Survived.equation <- "Pclass + Sex + Age + Parch + Fare + Embarked"
+
+Survived <- predict(titanic.model, newdata = titanic.test2)
+
+Survived
+
+PassengerId <- titanic.test2$PassengerId
+
+#Creating a one-dimensional Data-Frame
+output.df <- as.data.frame(PassengerId)
+output.df$Survived <- Survived
+table(output.df)
+tail(output.df)
+
+write.csv(output.df, file = "Titanic Jarkko.csv", row.names = FALSE)
+```
+
