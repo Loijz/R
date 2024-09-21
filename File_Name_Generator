@@ -1,0 +1,31 @@
+
+#install.packages("stringi")
+
+# Load the required library
+#library(stringi)
+
+# Define the folder path
+folder_path <- "Hardrive Path"
+
+# Get a list of all .jpg files in the folder
+jpg_files <- list.files(path = folder_path, pattern = "\\.jpg$", full.names = TRUE)
+
+# Create a function to generate 6 random letters
+generate_random_name <- function() {
+  return(stri_rand_strings(1, 6, pattern = "[A-Za-z]"))
+}
+
+# Rename the files
+for (file in jpg_files) {
+  # Generate new random name
+  new_name <- generate_random_name()
+  
+  # Create full path for the new file name (keep the .jpg extension)
+  new_file <- file.path(dirname(file), paste0(new_name, ".jpg"))
+  
+  # Rename the file
+  file.rename(file, new_file)
+}
+
+# Print success message
+cat("Files have been renamed successfully!")
